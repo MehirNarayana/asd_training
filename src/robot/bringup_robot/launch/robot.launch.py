@@ -93,4 +93,12 @@ def generate_launch_description():
     )
     ld.add_action(odometry_spoof_node)
 
+    #################### Mapping Node #####################
+    mapping_node = Node(
+        package='costmap',
+        name='mapping_node',
+        executable='mapping_node',
+    )
+    ld.add_action(mapping_node)
+
     return ld
