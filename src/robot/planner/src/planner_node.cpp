@@ -181,7 +181,7 @@ private:
         if (map_index < 0 || map_index >= static_cast<int>(current_map_.data.size())) {
           return true;  
         }
-        return current_map_.data[map_index] >= 10;
+        return current_map_.data[map_index] >= 65;
       };
 
 

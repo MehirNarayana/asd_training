@@ -13,7 +13,7 @@ CostmapNode::CostmapNode() : Node("costmap"), costmap_(robot::CostmapCore(this->
   std::bind(&CostmapNode::receiveMessage, this, std::placeholders::_1)
 );
   //timer_ = this->create_wall_timer(std::chrono::milliseconds(500), std::bind(&CostmapNode::publishMessage, this));
-  gridLocal = std::vector<std::vector<double>>(300, std::vector<double>(300, -1.0));
+  gridLocal = std::vector<std::vector<double>>(300, std::vector<double>(300, 0.0));
   
 }
  
@@ -30,7 +30,7 @@ void CostmapNode::publishMessage() {
   grid.info.origin.position.y = -15;
   grid.info.origin.orientation.w = 1.0;
 
-  grid.data.assign(grid.info.width * grid.info.height, -1.0); // unknown
+  grid.data.assign(grid.info.width * grid.info.height, 0.0); // unknown
 
   //Mark a small occupied block
   for (int y = 0; y < 300; y++) {
@@ -45,7 +45,7 @@ void CostmapNode::publishMessage() {
 
 
 void CostmapNode::receiveMessage(sensor_msgs::msg::LaserScan::SharedPtr msg){
-  for (auto &row : gridLocal) std::fill(row.begin(), row.end(), -1.0);
+  for (auto &row : gridLocal) std::fill(row.begin(), row.end(), 0.0);
 
   for (size_t i = 0; i < msg->ranges.size(); ++i) {
         float angle = msg->angle_min + i * msg->angle_increment;
@@ -82,7 +82,7 @@ void CostmapNode::inflateObstacles(){
         continue;
       }
 
-      int step = std::ceil(0.5 / 0.1);
+      int step = std::ceil(2 / 0.1);
       for (int dy = -step; dy<=step; dy++){
         for (int dx=-step; dx<=step; dx++){
           int curr_x = j+dx;
@@ -94,8 +94,8 @@ void CostmapNode::inflateObstacles(){
 
           double currDist = std::hypot(dx, dy) * 0.1;
           //need to check cuz its a circle
-          if (currDist<0.5){
-            float currCost = 100*(1-currDist/0.5);
+          if (currDist<2.0){
+            float currCost = 100*(1-currDist/2);
             setCost(curr_x, curr_y, currCost);
 
           }
