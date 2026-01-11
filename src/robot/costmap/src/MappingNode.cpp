@@ -20,6 +20,15 @@ public:
         // Initialize timer
         timer_ = this->create_wall_timer(
             std::chrono::seconds(1), std::bind(&MappingNode::updateMap, this));
+
+        global_map_.header.frame_id = "sim_world";
+        global_map_.info.origin.position.x = -15.0;
+        global_map_.info.origin.position.y = -15.0;
+        global_map_.info.origin.position.z = 0;
+        global_map_.info.width = 300; 
+        global_map_.info.height = 300; 
+        global_map_.info.resolution = 0.1;
+        global_map_.data.resize(300 * 300, 0);
     }
  
 private:
@@ -76,61 +85,135 @@ private:
     }
  
     // Integrate the latest costmap into the global map
+    // void integrateCostmap() {
+
+       
+
+        
+
+        
+    //     int size = static_cast<int> (global_map_.info.width);
+    //     float resolution =  (global_map_.info.resolution);
+        
+
+
+    //     for (int yLocal=0;yLocal<size; yLocal++){
+    //         for (int xLocal=0;xLocal<size;xLocal++){
+    //             double xMeters = resolution*(xLocal-size/2.0);
+    //             double yMeters = resolution*(yLocal-size/2.0);
+    //             double rotatedX = xMeters*std::cos(last_robot_theta) - yMeters*std::sin(last_robot_theta);
+    //             double rotatedY = xMeters*std::sin(last_robot_theta) + yMeters*std::cos(last_robot_theta);
+    //             double translatedX = last_x+rotatedX;
+    //             double translatedY = last_y+rotatedY;
+    //             int gridX  = translatedX/resolution + 150;
+    //             int gridY = translatedY/resolution + 150;
+    //             // double xMeters = resolution * (xLocal - size / 2.0);
+    //             // double yMeters = resolution * (yLocal - size / 2.0);
+    //             // double translatedX = last_x + xMeters;
+    //             // double translatedY = last_y + yMeters;
+    //             // int gridX = translatedX / resolution + 150;
+    //             // int gridY = translatedY / resolution + 150;
+    //             if (gridX < 0 || gridX >= 300 || gridY < 0 || gridY >= 300) continue;
+
+    //             int index = gridY*300+gridX;
+    //             int indexTwo = yLocal * size + xLocal;
+    //             global_map_.data[index] = std::max(global_map_.data[index],latest_costmap_.data[indexTwo]);
+                
+
+                
+
+
+    //         }
+    //     }
+
+
+        
+
+    //     // Transform and merge the latest costmap into the global map
+    //     // (Implementation would handle grid alignment and merging logic)
+    // }
+
     void integrateCostmap() {
+  
+  
 
-        if (global_map_.data.empty()) {
-            
-            global_map_.header.frame_id = "sim_world";   
-            global_map_.info.width = 300;
-            global_map_.info.height = 300;
-            global_map_.info.resolution = latest_costmap_.info.resolution;
-            global_map_.info.origin.position.x = -15.0;
-            global_map_.info.origin.position.y = -15.0;
-            
-            
-            global_map_.data.assign(global_map_.info.width * global_map_.info.height, 0);
-        }
+  // Validate incoming costmap
+  if (latest_costmap_.data.empty()) return;
 
-        
+  // Ensure global map initialized (if you initialize elsewhere, this is harmless)
+  if (global_map_.data.empty()) {
+    RCLCPP_WARN(this->get_logger(), "Global map not initialized; skipping integration");
+    return;
+  }
 
-        
-        int size = static_cast<int> (latest_costmap_.info.width);
-        float resolution =  (latest_costmap_.info.resolution);
-        
+  // Check resolution compatibility
+  const double in_res = latest_costmap_.info.resolution;
+  const double glob_res = global_map_.info.resolution;
+  if (!std::isfinite(in_res) || !std::isfinite(glob_res)) {
+    RCLCPP_WARN(this->get_logger(), "Invalid resolution(s); skipping integration");
+    return;
+  }
+  if (std::abs(in_res - glob_res) > 1e-9) {
+    RCLCPP_WARN(this->get_logger(), "Resolution mismatch: skipping integration");
+    return;
+  }
 
+  // Aliases
+  const int in_size = static_cast<int>(latest_costmap_.info.width); // square map
+  const double half_local = (in_size * in_res) / 2.0;
+  const double glob_ox = global_map_.info.origin.position.x;
+  const double glob_oy = global_map_.info.origin.position.y;
+  const int glob_w = static_cast<int>(global_map_.info.width);
+  const int glob_h = static_cast<int>(global_map_.info.height);
 
-        for (int yLocal=0;yLocal<size; yLocal++){
-            for (int xLocal=0;xLocal<size;xLocal++){
-                double xMeters = resolution*(xLocal-size/2.0);
-                double yMeters = resolution*(yLocal-size/2.0);
-                double rotatedX = xMeters*std::cos(last_robot_theta) - yMeters*std::sin(last_robot_theta);
-                double rotatedY = xMeters*std::sin(last_robot_theta) + yMeters*std::cos(last_robot_theta);
-                double translatedX = last_x+rotatedX;
-                double translatedY = last_y+rotatedY;
-                int gridX  = translatedX/resolution + 150;
-                int gridY = translatedY/resolution + 150;
-                // double xMeters = resolution * (xLocal - size / 2.0);
-                // double yMeters = resolution * (yLocal - size / 2.0);
-                // double translatedX = last_x + xMeters;
-                // double translatedY = last_y + yMeters;
-                // int gridX = translatedX / resolution + 150;
-                // int gridY = translatedY / resolution + 150;
-                if (gridX < 0 || gridX >= 300 || gridY < 0 || gridY >= 300) continue;
+  // Robot pose (world)
+  double rx = last_x;
+  double ry = last_y;
+  double rtheta = last_robot_theta;
+  double cos_t = std::cos(rtheta);
+  double sin_t = std::sin(rtheta);
 
-                int index = gridY*300+gridX;
-                int indexTwo = yLocal * size + xLocal;
-                global_map_.data[index] = std::max(global_map_.data[index],latest_costmap_.data[indexTwo]);
+  // Iterate incoming (robot-relative) costmap cells
+  for (int yLocal = 0; yLocal < in_size; ++yLocal) {
+    for (int xLocal = 0; xLocal < in_size; ++xLocal) {
+      int inIdx = yLocal * in_size + xLocal;
+      int8_t inVal = latest_costmap_.data[inIdx];
 
+      // Skip unknowns in incoming costmap
+      if (inVal < 0) continue;
 
-            }
-        }
+      // Local coordinates of cell center (robot frame)
+      double lx = (xLocal + 0.5) * in_res - half_local; // x_local (meters)
+      double ly = (yLocal + 0.5) * in_res - half_local; // y_local (meters)
 
+      // Rotate then translate to world coordinates
+      double wx = rx + (lx * cos_t - ly * sin_t);
+      double wy = ry + (lx * sin_t + ly * cos_t);
 
-        
+      // World -> global grid indices (use floor for consistent mapping)
+      int gx = static_cast<int>(std::floor((wx - glob_ox) / glob_res));
+      int gy = static_cast<int>(std::floor((wy - glob_oy) / glob_res));
 
-        // Transform and merge the latest costmap into the global map
-        // (Implementation would handle grid alignment and merging logic)
+      if (gx < 0 || gx >= glob_w || gy < 0 || gy >= glob_h) continue;
+
+      int gidx = gy * glob_w + gx;
+
+      // Merge policy: preserve unknown in global map, otherwise take max after clamping
+      int existing = static_cast<int>(global_map_.data[gidx]);
+      int incoming = std::clamp<int>(static_cast<int>(inVal), 0, 100);
+
+      if (existing < 0) {
+        global_map_.data[gidx] = static_cast<int8_t>(incoming);
+      } else {
+        global_map_.data[gidx] = static_cast<int8_t>(std::max(existing, incoming));
+      }
     }
+  }
+
+  // Update header stamp
+  global_map_.header.stamp = this->now();
+}
+
 
 
 
