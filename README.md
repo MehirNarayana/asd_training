@@ -12,5 +12,5 @@ These steps are to setup the monorepo to work on your own PC. We utilize docker 
 Link to Onboarding Assignment: https://wiki.watonomous.ca/
 
 #TODO:
-Implement Bersenham's algorithm to make A* generate more direct paths
+Implement Bersenham's algorithm to make A* generate more direct paths  
 Implement splines maybe?
