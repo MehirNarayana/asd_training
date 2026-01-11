@@ -152,9 +152,18 @@ private:
     }
 
     void calculatePath(nav_msgs::msg::Path &path){
+
+      auto isBlocked = [this](const CellIndex& idx) -> bool {
+        int map_index = idx.y * current_map_.info.width + idx.x;
+        if (idx.x < 0 || idx.x >= 300 || idx.y<0 || idx.y>=300) {
+          return true;  
+        }
+        return current_map_.data[map_index] > 30;
+      };
+
       int goal_grid_x = std::floor((goal_.point.x - current_map_.info.origin.position.x) / current_map_.info.resolution);
       int goal_grid_y = std::floor((goal_.point.y - current_map_.info.origin.position.y) / current_map_.info.resolution);
-
+      
       
       if (goal_grid_x < 0 || goal_grid_x >= static_cast<int>(current_map_.info.width) ||
           goal_grid_y < 0 || goal_grid_y >= static_cast<int>(current_map_.info.height)) {
@@ -164,6 +173,13 @@ private:
 
       int robot_grid_x = std::floor((robot_pose_.position.x - current_map_.info.origin.position.x) / current_map_.info.resolution);
       int robot_grid_y = std::floor((robot_pose_.position.y - current_map_.info.origin.position.y) / current_map_.info.resolution);
+      CellIndex robot_idx(robot_grid_x, robot_grid_y);
+      if (isBlocked(robot_idx)) { 
+        RCLCPP_WARN(this->get_logger(), "Robot is in a blocked cell — snapping to nearest open cell."); 
+        robot_idx = findClosestOpenCell(robot_idx, isBlocked);
+      }
+      robot_grid_x = robot_idx.x; 
+      robot_grid_y = robot_idx.y;
       std::priority_queue<AStarNode, std::vector<AStarNode>, CompareF> open_q;
       std::unordered_map<CellIndex, double, CellIndexHash> gScore;
       
@@ -176,13 +192,7 @@ private:
       };
 
 
-      auto isBlocked = [this](const CellIndex& idx) -> bool {
-        int map_index = idx.y * current_map_.info.width + idx.x;
-        if (map_index < 0 || map_index >= static_cast<int>(current_map_.data.size())) {
-          return true;  
-        }
-        return current_map_.data[map_index] >= 65;
-      };
+      
 
 
       
@@ -238,7 +248,47 @@ private:
 
     }
 
-  
+    CellIndex findClosestOpenCell(const CellIndex &start,
+                              std::function<bool(const CellIndex&)> isBlocked) 
+{
+    std::queue<CellIndex> q;
+    std::unordered_set<CellIndex, CellIndexHash> visited;
+
+    q.push(start);
+    visited.insert(start);
+
+    const int dx[8] = { -1, -1, -1,  0, 0, 1, 1, 1 };
+    const int dy[8] = { -1,  0,  1, -1, 1,-1, 0, 1 };
+
+    while (!q.empty()) {
+        CellIndex curr = q.front();
+        q.pop();
+
+        // Found a free cell
+        if (!isBlocked(curr)) {
+            return curr;
+        }
+
+        // Explore neighbors
+        for (int i = 0; i < 8; i++) {
+            CellIndex nb(curr.x + dx[i], curr.y + dy[i]);
+
+            // Bounds check
+            if (nb.x < 0 || nb.x >= (int)current_map_.info.width ||
+                nb.y < 0 || nb.y >= (int)current_map_.info.height)
+                continue;
+
+            if (visited.count(nb) == 0) {
+                visited.insert(nb);
+                q.push(nb);
+            }
+        }
+    }
+
+    // If no free cell exists (extremely unlikely), return original
+    return start;
+}
+
 
 
     void constructPath(nav_msgs::msg::Path &path, 
