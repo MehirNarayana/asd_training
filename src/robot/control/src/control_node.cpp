@@ -209,7 +209,7 @@ private:
         
         double dist_error = std::hypot(dx, dy);
         geometry_msgs::msg::Twist cmd_vel;
-        double angular_velocity_p = 2;
+        double angular_velocity_p = 2.5;
         double linear_velocity_p = 1.1;
         double forward_dot = dx * cos(curr_yaw) + dy * sin(curr_yaw); // Dot product with the forward direction
         double forward_dir = std::copysign(1.0, forward_dot);
