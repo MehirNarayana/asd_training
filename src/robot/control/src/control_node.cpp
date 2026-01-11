@@ -10,8 +10,8 @@ public:
     PurePursuitController() : Node("pure_pursuit_controller") {
         // Initialize parameters
 
-        lookahead_distance_ = 1.0;  // Lookahead distance
-        goal_tolerance_ = 0.5;     // Distance to consider the goal reached
+        lookahead_distance_ = 1.5;  // Lookahead distance
+        goal_tolerance_ = 1;     // Distance to consider the goal reached
         linear_speed_ = 0.5;       // Constant forward speed
         lastIndex=0;
         // Subscribers and Publishers
@@ -209,15 +209,17 @@ private:
         
         double dist_error = std::hypot(dx, dy);
         geometry_msgs::msg::Twist cmd_vel;
-        double angular_velocity_p = 0.20;
-        double linear_velocity_p = 0.5;
+        double angular_velocity_p = 2;
+        double linear_velocity_p = 1.1;
         double forward_dot = dx * cos(curr_yaw) + dy * sin(curr_yaw); // Dot product with the forward direction
         double forward_dir = std::copysign(1.0, forward_dot);
-        cmd_vel.linear.x = std::clamp(linear_velocity_p * dist_error, -0.5, 0.5) * forward_dir;
+        cmd_vel.linear.x = std::clamp(linear_velocity_p * dist_error, 0.0, 2.0); //* forward_dir;
 
-        cmd_vel.angular.z = std::clamp(angular_velocity_p * angle_error, -0.5, 0.5);
+        cmd_vel.angular.z = std::clamp(angular_velocity_p * angle_error, -2.0, 2.0);
         if (dist_error < goal_tolerance_) {
-            return geometry_msgs::msg::Twist{};
+            cmd_vel.linear.x = 0.0; //* forward_dir;
+            
+            cmd_vel.angular.z = 0.0;
             
         }
         return cmd_vel;

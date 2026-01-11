@@ -12,8 +12,8 @@ CostmapNode::CostmapNode() : Node("costmap"), costmap_(robot::CostmapCore(this->
   rclcpp::SensorDataQoS(),
   std::bind(&CostmapNode::receiveMessage, this, std::placeholders::_1)
 );
-  timer_ = this->create_wall_timer(std::chrono::milliseconds(500), std::bind(&CostmapNode::publishMessage, this));
-  gridLocal = std::vector<std::vector<double>>(300, std::vector<double>(300, 0));
+  //timer_ = this->create_wall_timer(std::chrono::milliseconds(500), std::bind(&CostmapNode::publishMessage, this));
+  gridLocal = std::vector<std::vector<double>>(300, std::vector<double>(300, 0.0));
   
 }
  
@@ -21,21 +21,21 @@ CostmapNode::CostmapNode() : Node("costmap"), costmap_(robot::CostmapCore(this->
 void CostmapNode::publishMessage() {
   nav_msgs::msg::OccupancyGrid grid;
   grid.header.stamp = this->now();
-  grid.header.frame_id = "base_link";
+  grid.header.frame_id = "sim_world";
 
   grid.info.resolution = 0.1;  // 10cm/cell
   grid.info.width = 300;
   grid.info.height = 300;
-  grid.info.origin.position.x = 0.0;
-  grid.info.origin.position.y = 0.0;
+  grid.info.origin.position.x = -15;
+  grid.info.origin.position.y = -15;
   grid.info.origin.orientation.w = 1.0;
 
-  grid.data.assign(grid.info.width * grid.info.height, 0); // unknown
+  grid.data.assign(grid.info.width * grid.info.height, 0.0); // unknown
 
-  // Mark a small occupied block
+  //Mark a small occupied block
   for (int y = 0; y < 300; y++) {
     for (int x = 0; x < 300; x++) {
-      grid.data[y * grid.info.width + x] = static_cast<int8_t>(gridLocal[y][x]);
+      grid.data[y * grid.info.width + x] = static_cast<float>(gridLocal[y][x]);
     }
   }
 
@@ -65,8 +65,8 @@ void CostmapNode::receiveMessage(sensor_msgs::msg::LaserScan::SharedPtr msg){
 }
 
 void CostmapNode::convertToGrid(float &range, float &angle, int &x_grid, int &y_grid){
-  x_grid = 150 + range*std::cos(angle) / 0.1;
-  y_grid = 150+ range*std::sin(angle) / 0.1;
+  x_grid = 150 + std::floor(range*std::cos(angle) / 0.1);
+  y_grid = 150+ std::floor(range*std::sin(angle) / 0.1);
 }
 
 void CostmapNode::markObstacle(int &x_grid, int &y_grid){
@@ -82,7 +82,7 @@ void CostmapNode::inflateObstacles(){
         continue;
       }
 
-      int step = std::ceil(0.5 / 0.1);
+      int step = std::ceil(2 / 0.1);
       for (int dy = -step; dy<=step; dy++){
         for (int dx=-step; dx<=step; dx++){
           int curr_x = j+dx;
@@ -94,8 +94,8 @@ void CostmapNode::inflateObstacles(){
 
           double currDist = std::hypot(dx, dy) * 0.1;
           //need to check cuz its a circle
-          if (currDist<0.5){
-            float currCost = 100*(1-currDist/0.1);
+          if (currDist<2.0){
+            float currCost = 100*(1-currDist/2);
             setCost(curr_x, curr_y, currCost);
 
           }

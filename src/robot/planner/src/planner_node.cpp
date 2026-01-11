@@ -143,7 +143,7 @@ private:
         // A* Implementation (pseudo-code)
         nav_msgs::msg::Path path;
         path.header.stamp = this->get_clock()->now();
-        path.header.frame_id = "map";
+        path.header.frame_id = "sim_world";
         calculatePath(path);
         // Compute path using A* on current_map_
         // Fill path.poses with the resulting waypoints.
@@ -152,8 +152,8 @@ private:
     }
 
     void calculatePath(nav_msgs::msg::Path &path){
-      int goal_grid_x = static_cast<int>((goal_.point.x - current_map_.info.origin.position.x) / current_map_.info.resolution);
-      int goal_grid_y = static_cast<int>((goal_.point.y - current_map_.info.origin.position.y) / current_map_.info.resolution);
+      int goal_grid_x = std::floor((goal_.point.x - current_map_.info.origin.position.x) / current_map_.info.resolution);
+      int goal_grid_y = std::floor((goal_.point.y - current_map_.info.origin.position.y) / current_map_.info.resolution);
 
       
       if (goal_grid_x < 0 || goal_grid_x >= static_cast<int>(current_map_.info.width) ||
@@ -162,8 +162,8 @@ private:
           return;
       }
 
-      int robot_grid_x = static_cast<int>(robot_pose_.position.x - current_map_.info.origin.position.x) / current_map_.info.resolution;
-      int robot_grid_y = static_cast<int>(robot_pose_.position.y - current_map_.info.origin.position.y) / current_map_.info.resolution;
+      int robot_grid_x = std::floor((robot_pose_.position.x - current_map_.info.origin.position.x) / current_map_.info.resolution);
+      int robot_grid_y = std::floor((robot_pose_.position.y - current_map_.info.origin.position.y) / current_map_.info.resolution);
       std::priority_queue<AStarNode, std::vector<AStarNode>, CompareF> open_q;
       std::unordered_map<CellIndex, double, CellIndexHash> gScore;
       
@@ -171,7 +171,7 @@ private:
       std::unordered_map<CellIndex, CellIndex, CellIndexHash> cameFrom;
       
       auto distHeuristic = [goal_grid_x, goal_grid_y](double x, double y){
-        return (x-goal_grid_x) * (x-goal_grid_x) + (y-goal_grid_y)* (y-goal_grid_y);
+        return std::hypot((x-goal_grid_x), (y-goal_grid_y));
 
       };
 
@@ -181,7 +181,7 @@ private:
         if (map_index < 0 || map_index >= static_cast<int>(current_map_.data.size())) {
           return true;  
         }
-        return current_map_.data[map_index] >= 10;
+        return current_map_.data[map_index] >= 65;
       };
 
 
@@ -218,12 +218,13 @@ private:
           if (isBlocked(curr_neighbor)){
             continue;
           }
-          double tentative_g = gScore[curr.index] + distHeuristic(curr.index.x, curr.index.y);
+          double tentative_g = gScore.at(curr.index) + std::hypot(curr.index.x-curr_neighbor.x, curr.index.y-curr_neighbor.y);
           
-          if (tentative_g < gScore[curr_neighbor]){
+          
+          if (tentative_g < gScore.at(curr_neighbor)){
             cameFrom[curr_neighbor] = curr.index;
             gScore[curr_neighbor] = tentative_g;
-            open_q.push(AStarNode(curr_neighbor, tentative_g+distHeuristic(curr.index.x+dx[i], curr.index.y+dy[i])));
+            open_q.push(AStarNode(curr_neighbor, tentative_g+distHeuristic(curr_neighbor.x, curr_neighbor.y)));
 
           }
         }
@@ -259,7 +260,7 @@ private:
       
         for (auto& cell : waypoints) {
           geometry_msgs::msg::PoseStamped pose;
-          pose.header.frame_id = "map";
+          pose.header.frame_id = "sim_world";
           pose.header.stamp = this->now();
           
           
